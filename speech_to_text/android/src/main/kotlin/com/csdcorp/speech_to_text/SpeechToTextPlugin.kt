@@ -586,6 +586,11 @@ public class SpeechToTextPlugin :
         val list: List<ResolveInfo> = packageManager.queryIntentServices(Intent(RecognitionService.SERVICE_INTERFACE), 0)
         debugLog("RecognitionService, found: ${list.size}")
         list.forEach() { it.serviceInfo?.let { it1 -> debugLog("RecognitionService: packageName: ${it1.packageName}, name: ${it1.name}") } }
+        for (provider in list) {
+            if (provider.serviceInfo.name.contains("googletts")) {
+                return provider.serviceInfo.let { ComponentName(it.packageName, it.name) }
+            }
+        }
         return list.firstOrNull()?.serviceInfo?.let { ComponentName(it.packageName, it.name) }
     }
 
