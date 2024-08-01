@@ -584,8 +584,8 @@ public class SpeechToTextPlugin :
 
     private fun Context.findComponentName(): ComponentName? {
         val list: List<ResolveInfo> = packageManager.queryIntentServices(Intent(RecognitionService.SERVICE_INTERFACE), 0)
-        debugLog("RecognitionService, found: ${list.size}")
-        list.forEach() { it.serviceInfo?.let { it1 -> debugLog("RecognitionService: packageName: ${it1.packageName}, name: ${it1.name}") } }
+        Log.d("SpeechTextAndroid", "RecognitionService, found: ${list.size}")
+        list.forEach() { it.serviceInfo?.let { it1 -> Log.d("SpeechTextAndroid","RecognitionService: packageName: ${it1.packageName}, name: ${it1.name}") } }
         for (provider in list) {
             if (provider.serviceInfo.name.contains("googletts")) {
                 return provider.serviceInfo.let { ComponentName(it.packageName, it.name) }

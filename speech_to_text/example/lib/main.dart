@@ -49,6 +49,7 @@ class _SpeechSampleAppState extends State<SpeechSampleApp> {
     _logEvent('Initialize');
     try {
       var hasSpeech = await speech.initialize(
+        options: [SpeechToText.androidIntentLookup],
         onError: errorListener,
         onStatus: statusListener,
         debugLogging: _logEvents,
