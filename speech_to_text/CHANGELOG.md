@@ -1,5 +1,33 @@
 # Changelog
 
+## 7.1.0
+
+### New
+* support for web search recognition type on Android thanks to @vongrad for the PR
+* example app improvements to expose more options, provide help, and improve behaviour 
+on smaller devices. 
+
+### Fix
+* on iOS there is a new bug in their speech recognition that resets the transcription after 
+a pause in the users' speech. This version attempts a mitigation by using meta information 
+from the recognizer to concatenate subsequent transcriptions so the whole is not lost. There
+are problems with this approach, notably extra capitalization and possibly incorrects spaces
+being added. The concatenated transcription is added as the first result but all other results 
+are still the same. See issue [#552](https://github.com/csdcorp/speech_to_text/issues/552) 
+for details. 
+
+## 7.0.0
+
+### New
+* support for speech recognition on MacOS
+* supports WASM compliation for web
+
+### Fix
+* Remove support for deprecated v1 Android registration [#545](https://github.com/csdcorp/speech_to_text/issues/545)
+* Update deprecated Android build settings
+* Improves handling of possible duplicates from the locales() method to ensure they are removed
+* Language codes are properly handled for on device recognition on Android
+
 ## 6.6.2
 
 ### New

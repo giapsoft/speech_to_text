@@ -34,7 +34,6 @@ import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 import io.flutter.plugin.common.PluginRegistry
-import io.flutter.plugin.common.PluginRegistry.Registrar
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.*
@@ -125,25 +124,6 @@ public class SpeechToTextPlugin :
         onAttachedToEngine(flutterPluginBinding.getApplicationContext(), flutterPluginBinding.getBinaryMessenger());
     }
 
-    // This static function is optional and equivalent to onAttachedToEngine. It supports the old
-    // pre-Flutter-1.12 Android projects. You are encouraged to continue supporting
-    // plugin registration via this function while apps migrate to use the new Android APIs
-    // post-flutter-1.12 via https://flutter.dev/go/android-project-migration.
-    //
-    // It is encouraged to share logic between onAttachedToEngine and registerWith to keep
-    // them functionally equivalent. Only one of onAttachedToEngine or registerWith will be called
-    // depending on the user's project. onAttachedToEngine or registerWith must both be defined
-    // in the same class.
-    companion object {
-        @JvmStatic
-        fun registerWith(registrar: Registrar) {
-            val speechPlugin = SpeechToTextPlugin()
-            speechPlugin.currentActivity = registrar.activity()
-            registrar.addRequestPermissionsResultListener(speechPlugin)
-            speechPlugin.onAttachedToEngine(registrar.context(), registrar.messenger())
-        }
-    }
-
     private fun onAttachedToEngine(applicationContext: Context, messenger: BinaryMessenger) {
         this.pluginContext = applicationContext;
         channel = MethodChannel(messenger, pluginChannelName)
@@ -203,6 +183,7 @@ public class SpeechToTextPlugin :
                     if (null == localeId) {
                         localeId = defaultLanguageTag
                     }
+                    localeId = localeId.replace( '_', '-')
                     var partialResults = call.argument<Boolean>("partialResults")
                     if (null == partialResults) {
                         partialResults = true
@@ -286,15 +267,14 @@ public class SpeechToTextPlugin :
             result.success(false)
             return
         }
+        var listenMode = enumValues<ListenMode>()[listenModeIndex]
+
         resultSent = false
-        createRecognizer(onDevice)
+        createRecognizer(onDevice, listenMode)
         minRms = 1000.0F
         maxRms = -100.0F
         debugLog("Start listening")
-        var listenMode = ListenMode.deviceDefault
-        if ( listenModeIndex == ListenMode.dictation.ordinal) {
-            listenMode = ListenMode.dictation
-        }
+
         optionallyStartBluetooth()
         setupRecognizerIntent(languageTag, partialResults, listenMode, onDevice )
         handler.post {
@@ -584,8 +564,8 @@ public class SpeechToTextPlugin :
 
     private fun Context.findComponentName(): ComponentName? {
         val list: List<ResolveInfo> = packageManager.queryIntentServices(Intent(RecognitionService.SERVICE_INTERFACE), 0)
-        Log.d("SpeechTextAndroid", "RecognitionService, found: ${list.size}")
-        list.forEach() { it.serviceInfo?.let { it1 -> Log.d("SpeechTextAndroid","RecognitionService: packageName: ${it1.packageName}, name: ${it1.name}") } }
+        debugLog("RecognitionService, found: ${list.size}")
+        list.forEach() { it.serviceInfo?.let { it1 -> debugLog("RecognitionService: packageName: ${it1.packageName}, name: ${it1.name}") } }
         for (provider in list) {
             if (provider.serviceInfo.name.contains("googletts")) {
                 return provider.serviceInfo.let { ComponentName(it.packageName, it.name) }
@@ -594,7 +574,7 @@ public class SpeechToTextPlugin :
         return list.firstOrNull()?.serviceInfo?.let { ComponentName(it.packageName, it.name) }
     }
 
-    private fun createRecognizer(onDevice: Boolean) {
+    private fun createRecognizer(onDevice: Boolean, listenMode: ListenMode) {
         if ( null != speechRecognizer && onDevice == lastOnDevice ) {
             return
         }
@@ -641,7 +621,7 @@ public class SpeechToTextPlugin :
             }
         }
         debugLog("before setup intent")
-        setupRecognizerIntent(defaultLanguageTag, true, ListenMode.deviceDefault, false )
+        setupRecognizerIntent(defaultLanguageTag, true, listenMode, false )
         debugLog("after setup intent")
     }
 
@@ -657,7 +637,12 @@ public class SpeechToTextPlugin :
                 run {
                     recognizerIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                         debugLog("In RecognizerIntent apply")
-                        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                        if (listenMode == ListenMode.search) {
+                            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_WEB_SEARCH)
+                        }
+                        else {
+                            putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                        }
                         debugLog("put model")
                         val localContext = pluginContext
                         if (null != localContext) {

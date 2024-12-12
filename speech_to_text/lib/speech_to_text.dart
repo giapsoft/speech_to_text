@@ -19,6 +19,15 @@ class LocaleName {
   final String name;
 
   LocaleName(this.localeId, this.name);
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        other is LocaleName && localeId == other.localeId;
+  }
+
+  @override
+  int get hashCode => localeId.hashCode;
 }
 
 /// Notified as words are recognized with the current set of recognized words.
@@ -61,6 +70,14 @@ typedef SpeechErrorListener = void Function(
 ///
 /// See the [onStatus] argument on the [SpeechToText.initialize] method for use.
 typedef SpeechStatusListener = void Function(String status);
+
+/// Aggregates multiple phrases into a single result. This is used when
+/// the platform returns multiple phrases for a single utterance. The default
+/// behaviour is to concatenate the phrases into a single result with spaces
+/// separating the phrases and no change to capitalization. This can
+/// be overridden to provide a different aggregation strategy.
+/// see [_defaultPhraseAggregator] for the default implementation.
+typedef SpeechPhraseAggregator = String Function(List<String> phrases);
 
 /// Notified when the sound level changes during a listen method.
 ///
@@ -186,6 +203,13 @@ class SpeechToText {
   SpeechErrorListener? errorListener;
   SpeechStatusListener? statusListener;
   SpeechSoundLevelChange? _soundLevelChange;
+
+  /// This overrides the default phrase aggregator to allow for
+  /// different strategies for aggregating multiple phrases into
+  /// a single result. This is used when the platform unexpectedly
+  /// returns multiple phrases for a single utterance. Currently
+  /// this happens only due to a bug in iOS 17.5/18
+  SpeechPhraseAggregator? unexpectedPhraseAggregator;
 
   factory SpeechToText() => _instance;
 
@@ -439,7 +463,7 @@ class SpeechToText {
     _lastRecognized = '';
     _userEnded = false;
     _lastSpeechResult = null;
-    _cancelOnError = cancelOnError;
+    _cancelOnError = listenOptions?.cancelOnError ?? cancelOnError;
     _recognized = false;
     _notifiedFinal = false;
     _notifiedDone = false;
@@ -448,14 +472,17 @@ class SpeechToText {
     _partialResults = partialResults;
     _notifyFinalTimer?.cancel();
     _notifyFinalTimer = null;
-    try {
-      var started = await SpeechToTextPlatform.instance.listen(
+    final usedOptions = listenOptions ??
+        SpeechListenOptions(
           partialResults: partialResults || null != pauseFor,
           onDevice: onDevice,
-          listenMode: listenMode.index,
+          listenMode: listenMode,
           sampleRate: sampleRate,
-          localeId: localeId,
-          options: listenOptions);
+          cancelOnError: cancelOnError,
+        );
+    try {
+      var started = await SpeechToTextPlatform.instance
+          .listen(localeId: localeId, options: usedOptions);
       if (started) {
         _listenStartedAt = clock.now().millisecondsSinceEpoch;
         _lastSpeechEventAt = _listenStartedAt;
@@ -578,6 +605,7 @@ class SpeechToText {
           return LocaleName(components[0], components[1]);
         })
         .where((item) => item != null)
+        .toSet()
         .toList()
         .cast<LocaleName>();
     if (filteredLocales.isNotEmpty) {
@@ -602,7 +630,27 @@ class SpeechToText {
     // print('onTextRecognition');
     Map<String, dynamic> resultMap = jsonDecode(resultJson);
     var speechResult = SpeechRecognitionResult.fromJson(resultMap);
+    speechResult = _checkAggregates(speechResult);
     _notifyResults(speechResult);
+  }
+
+  /// Checks the result for multiple phrases and aggregates them if needed.
+  /// Returns a new result with the aggregated phrases.
+  SpeechRecognitionResult _checkAggregates(SpeechRecognitionResult result) {
+    var alternates = <SpeechRecognitionWords>[];
+    for (var alternate in result.alternates) {
+      if (alternate.recognizedPhrases != null) {
+        final aggregated = (unexpectedPhraseAggregator ??
+            _defaultPhraseAggregator)(alternate.recognizedPhrases!);
+        final aggregatedWords = SpeechRecognitionWords(
+            aggregated, alternate.recognizedPhrases, alternate.confidence);
+        alternates.add(aggregatedWords);
+      } else {
+        alternates.add(alternate);
+      }
+      // print('  ${alternate.recognizedWords} ${alternate.confidence}');
+    }
+    return SpeechRecognitionResult(alternates, result.finalResult);
   }
 
   void _onFinalTimeout() {
@@ -701,6 +749,10 @@ class SpeechToText {
     _notifyFinalTimer?.cancel();
     _notifyFinalTimer = null;
     _listenTimer = null;
+  }
+
+  String _defaultPhraseAggregator(List<String> phrases) {
+    return phrases.join(' ');
   }
 }
 
