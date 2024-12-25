@@ -1,9 +1,7 @@
 import 'dart:convert';
 
 import 'package:fake_async/fake_async.dart';
-import 'package:mockito/mockito.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:speech_to_text/speech_recognition_error.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
@@ -682,7 +680,3 @@ class TestSpeechListener {
     soundLevels.add(level);
   }
 }
-
-class MockSpeechToText extends Mock
-    with MockPlatformInterfaceMixin
-    implements SpeechToTextPlatform {}
